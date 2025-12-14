@@ -147,7 +147,7 @@ avatar.position.y += (avatar.position.y - center.y);
 avatar.position.z += (avatar.position.z - center.z);
 
 // Make her bigger (increase this to make her larger overall)
-const targetHeight = 2.25; // was ~1.7; bigger = larger Sarah
+const targetHeight = 2.26; // was ~1.7; bigger = larger Sarah
 const scale = targetHeight / Math.max(size.y, 0.0001);
 avatar.scale.setScalar(scale);
 
@@ -164,10 +164,10 @@ const fov = (camera.fov * Math.PI) / 180;
 let camDist = (maxDim / 2) / Math.tan(fov / 2);
 
 // Zoom IN for upper body (smaller multiplier = closer)
-camDist *= 0.85;
+camDist *= 0.75;
 
 // Target higher than center to focus on upper torso / head
-const target = new THREE.Vector3(center2.x, center2.y + maxDim * 0.18, center2.z);
+const target = new THREE.Vector3(center2.x, center2.y + maxDim * 0.24, center2.z);
 
 // Put camera slightly above target, looking down a touch
 camera.position.set(
