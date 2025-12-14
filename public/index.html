@@ -129,10 +129,49 @@
       "/models/sarah.glb",
       (gltf) => {
         avatar = gltf.scene;
-        avatar.scale.set(1, 1, 1);
-        scene.add(avatar);
-        avatarErr.style.display = "none";
-        setHud("idle");
+scene.add(avatar);
+
+// ---- AUTO-CENTER + AUTO-SCALE + AUTO-FIT CAMERA ----
+const box = new THREE.Box3().setFromObject(avatar);
+const size = new THREE.Vector3();
+box.getSize(size);
+const center = new THREE.Vector3();
+box.getCenter(center);
+
+// Center model at origin
+avatar.position.x += (avatar.position.x - center.x);
+avatar.position.y += (avatar.position.y - center.y);
+avatar.position.z += (avatar.position.z - center.z);
+
+// Scale model to a nice “human” height
+const targetHeight = 1.7; // adjust if you want bigger/smaller
+const scale = targetHeight / Math.max(size.y, 0.0001);
+avatar.scale.setScalar(scale);
+
+// Recompute after scale/center
+const box2 = new THREE.Box3().setFromObject(avatar);
+const size2 = new THREE.Vector3();
+box2.getSize(size2);
+const center2 = new THREE.Vector3();
+box2.getCenter(center2);
+
+// Fit camera distance
+const maxDim = Math.max(size2.x, size2.y, size2.z);
+const fov = (camera.fov * Math.PI) / 180;
+let camDist = (maxDim / 2) / Math.tan(fov / 2);
+camDist *= 1.45; // padding (increase to zoom out)
+
+camera.position.set(center2.x, center2.y + maxDim * 0.12, center2.z + camDist);
+camera.near = camDist / 100;
+camera.far = camDist * 100;
+camera.updateProjectionMatrix();
+
+controls.target.copy(center2);
+controls.update();
+// ---- END AUTO-FIT ----
+
+setHud("idle");
+
       },
       undefined,
       (err) => {
