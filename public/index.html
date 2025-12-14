@@ -134,7 +134,10 @@ scene.add(avatar);
 avatar = gltf.scene;
 scene.add(avatar);
 
-// ---- AUTO-CENTER + BIGGER SCALE + UPPER-BODY FRAMING ----
+avatar = gltf.scene;
+scene.add(avatar);
+
+// ---- SUPER SCALE + HEAD/SHOULDERS FRAMING (NO ARMS/HANDS) ----
 const box = new THREE.Box3().setFromObject(avatar);
 const size = new THREE.Vector3();
 box.getSize(size);
@@ -146,8 +149,9 @@ avatar.position.x += (avatar.position.x - center.x);
 avatar.position.y += (avatar.position.y - center.y);
 avatar.position.z += (avatar.position.z - center.z);
 
-// Make her bigger (increase this to make her larger overall)
-const targetHeight = 2.26; // was ~1.7; bigger = larger Sarah
+// 4×-ish bigger than typical human height framing
+// If your previous targetHeight was ~1.7, this is ~4x.
+const targetHeight = 6.8;
 const scale = targetHeight / Math.max(size.y, 0.0001);
 avatar.scale.setScalar(scale);
 
@@ -158,33 +162,40 @@ box2.getSize(size2);
 const center2 = new THREE.Vector3();
 box2.getCenter(center2);
 
-// Portrait framing: aim at chest/neck so arms aren’t in frame
+// HEAD/SHOULDERS target: aim high so arms/hands are out of frame
 const maxDim = Math.max(size2.x, size2.y, size2.z);
 const fov = (camera.fov * Math.PI) / 180;
-let camDist = (maxDim / 2) / Math.tan(fov / 2);
 
-// Zoom IN for upper body (smaller multiplier = closer)
-camDist *= 0.75;
+// Use vertical framing based on height for tighter crop
+let camDist = (size2.y / 2) / Math.tan(fov / 2);
 
-// Target higher than center to focus on upper torso / head
-const target = new THREE.Vector3(center2.x, center2.y + maxDim * 0.24, center2.z);
+// Zoom in tight
+camDist *= 0.40;
 
-// Put camera slightly above target, looking down a touch
+// Aim near upper chest / neck / face
+const target = new THREE.Vector3(
+  center2.x,
+  center2.y + size2.y * 0.22,
+  center2.z
+);
+
+// Camera slightly above target, looking down slightly
 camera.position.set(
   target.x,
-  target.y + maxDim * 0.06,
+  target.y + size2.y * 0.03,
   target.z + camDist
 );
 
-camera.near = camDist / 200;
-camera.far = camDist * 200;
+camera.near = camDist / 500;
+camera.far = camDist * 500;
 camera.updateProjectionMatrix();
 
 controls.target.copy(target);
 controls.update();
-// ---- END PORTRAIT FIT ----
+// ---- END SUPER PORTRAIT FIT ----
 
 setHud("idle");
+
 
 
       },
