@@ -125,75 +125,113 @@
     const loader = new GLTFLoader();
     let avatar = null;
 
+function fitAvatarPortrait() {
+  if (!avatar) return;
+
+  const box = new THREE.Box3().setFromObject(avatar);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+
+  avatar.position.x += (avatar.position.x - center.x);
+  avatar.position.y += (avatar.position.y - center.y);
+  avatar.position.z += (avatar.position.z - center.z);
+
+  const targetHeight = 2.9;
+  console.log("TARGET HEIGHT NOW =", targetHeight);
+
+  const scale = targetHeight / Math.max(size.y, 0.0001);
+  avatar.scale.setScalar(scale);
+
+  const box2 = new THREE.Box3().setFromObject(avatar);
+  const size2 = new THREE.Vector3();
+  box2.getSize(size2);
+  const center2 = new THREE.Vector3();
+  box2.getCenter(center2);
+
+  const fov = (camera.fov * Math.PI) / 180;
+  let camDist = (size2.y / 2) / Math.tan(fov / 2);
+  camDist *= 0.52;
+
+  const target = new THREE.Vector3(
+    center2.x,
+    center2.y + size2.y * 0.22,
+    center2.z
+  );
+
+  camera.position.set(
+    target.x,
+    target.y + size2.y * 0.03,
+    target.z + camDist
+  );
+
+  camera.near = camDist / 500;
+  camera.far = camDist * 500;
+  camera.updateProjectionMatrix();
+
+  controls.target.copy(target);
+  controls.update();
+}
+
+// 👇 your existing code continues below, untouched
+
+function fitAvatarPortrait() {
+  if (!avatar) return;
+
+  // box/size/center
+  const box = new THREE.Box3().setFromObject(avatar);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+
+  // center at origin
+  avatar.position.x += (avatar.position.x - center.x);
+  avatar.position.y += (avatar.position.y - center.y);
+  avatar.position.z += (avatar.position.z - center.z);
+
+  // IMPORTANT: use your chosen height here (this is what you’re tuning)
+  const targetHeight = 2.9;
+  console.log("TARGET HEIGHT NOW =", targetHeight);
+
+  const scale = targetHeight / Math.max(size.y, 0.0001);
+  avatar.scale.setScalar(scale);
+
+  // recompute after scaling
+  const box2 = new THREE.Box3().setFromObject(avatar);
+  const size2 = new THREE.Vector3();
+  box2.getSize(size2);
+  const center2 = new THREE.Vector3();
+  box2.getCenter(center2);
+
+  const fov = (camera.fov * Math.PI) / 180;
+  let camDist = (size2.y / 2) / Math.tan(fov / 2);
+  camDist *= 0.52; // framing (leave unless you want to re-tune)
+
+  // aim high: head/shoulders, avoid arms/hands
+  const target = new THREE.Vector3(center2.x, center2.y + size2.y * 0.22, center2.z);
+
+  camera.position.set(target.x, target.y + size2.y * 0.03, target.z + camDist);
+  camera.near = camDist / 500;
+  camera.far = camDist * 500;
+  camera.updateProjectionMatrix();
+
+  controls.target.copy(target);
+  controls.update();
+}
+
     loader.load(
       "/models/sarah.glb",
       (gltf) => {
         avatar = gltf.scene;
 scene.add(avatar);
 
-avatar = gltf.scene;
-scene.add(avatar);
+fitAvatarPortrait();
+setHud("idle");
 
-avatar = gltf.scene;
-scene.add(avatar);
+setHud("idle");
 
-// ---- SUPER SCALE + HEAD/SHOULDERS FRAMING (NO ARMS/HANDS) ----
-const box = new THREE.Box3().setFromObject(avatar);
-const size = new THREE.Vector3();
-box.getSize(size);
-const center = new THREE.Vector3();
-box.getCenter(center);
-
-// Center model at origin
-avatar.position.x += (avatar.position.x - center.x);
-avatar.position.y += (avatar.position.y - center.y);
-avatar.position.z += (avatar.position.z - center.z);
-
-// 4×-ish bigger than typical human height framing
-// If your previous targetHeight was ~1.7, this is ~4x.
-const targetHeight = 2.9;
-console.log("TARGET HEIGHT NOW =", targetHeight);
-
-const scale = targetHeight / Math.max(size.y, 0.0001);
-avatar.scale.setScalar(scale);
-
-// Recompute after scale/center
-const box2 = new THREE.Box3().setFromObject(avatar);
-const size2 = new THREE.Vector3();
-box2.getSize(size2);
-const center2 = new THREE.Vector3();
-box2.getCenter(center2);
-
-// HEAD/SHOULDERS target: aim high so arms/hands are out of frame
-const maxDim = Math.max(size2.x, size2.y, size2.z);
-const fov = (camera.fov * Math.PI) / 180;
-
-// Use vertical framing based on height for tighter crop
-let camDist = (size2.y / 2) / Math.tan(fov / 2);
-
-// Zoom in tight
-camDist *= 0.52;
-
-// Aim near upper chest / neck / face
-const target = new THREE.Vector3(
-  center2.x,
-  center2.y + size2.y * 0.22,
-  center2.z
-);
-
-// Camera slightly above target, looking down slightly
-camera.position.set(
-  target.x,
-  target.y + size2.y * 0.03,
-  target.z + camDist
-);
-
-camera.near = camDist / 500;
-camera.far = camDist * 500;
-camera.updateProjectionMatrix();
-
-controls.target.copy(target);
-controls.update();
 // ---- END SUPER PORTRAIT FIT ----
 
 setHud("idle");
@@ -216,8 +254,10 @@ setHud("idle");
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+window.addEventListener("resize", onResize);
+
     }
-    window.addEventListener("resize", onResize);
+    fitAvatarPortrait();
 
     let t = 0;
     function animate() {
