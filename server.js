@@ -68,7 +68,6 @@ Your task is to provide a written, text-only evaluation of the interview.
 REQUIREMENTS:
 - Be highly analytical and detailed
 - Use structured headings
-- Reference applicable regulations where appropriate (Title VII, DoDI 1350.02, DAFI 36-2710)
 - Identify strengths, gaps, and missed opportunities
 - Provide concrete improvement recommendations
 - Do NOT role-play
