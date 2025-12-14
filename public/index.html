@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sarah – Voice GPT Avatar</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121a33; --muted:#a8b1d1; --text:#e9edff; --line:#233056; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background: radial-gradient(1200px 600px at 20% 0%, #1a2450, #0b1020); color: var(--text); }
+    header { padding:16px 18px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
+    header h1 { margin:0; font-size:18px; letter-spacing:.2px; }
+    header .sub { color:var(--muted); font-size:12px; line-height:1.25; }
+    .wrap { display:grid; grid-template-columns: 1.1fr .9fr; gap:14px; padding:14px; max-width:1200px; margin:0 auto; }
+    .card { background: rgba(18,26,51,.92); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+    #stage { height: 520px; position: relative; background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.06)); }
+    #hud { position:absolute; top:10px; left:10px; font-size:12px; color:var(--muted); background:rgba(0,0,0,.35); padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.08); }
+    #avatarErr { position:absolute; bottom:10px; left:10px; right:10px; font-size:12px; color:#ffd1d1; background:rgba(80,0,0,.25); padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.1); display:none; }
+    .right { display:flex; flex-direction:column; }
+    #chat { height: 420px; overflow:auto; padding:12px; }
+    .msg { padding:10px 12px; border-radius:12px; margin:8px 0; font-size:14px; line-height:1.35; white-space: pre-wrap; }
+    .msg.sys { background: rgba(255,255,255,.06); color: var(--muted); border:1px solid rgba(255,255,255,.07); }
+    .msg.u { background: rgba(80,140,255,.18); border:1px solid rgba(80,140,255,.25); }
+    .msg.b { background: rgba(100,255,180,.14); border:1px solid rgba(100,255,180,.22); }
+    .controls { padding:12px; border-top:1px solid var(--line); display:grid; gap:10px; }
+    .row { display:flex; gap:10px; }
+    input[type="text"] { flex:1; padding:12px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.18); color: var(--text); outline:none; }
+    button { padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: var(--text); cursor:pointer; }
+    button:hover { background: rgba(255,255,255,.10); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .tiny { color: var(--muted); font-size:12px; }
+    @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; } #stage { height: 420px; } #chat { height: 360px; } }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <h1>Sarah – Voice GPT Avatar</h1>
+      <div class="sub">Talk or type. Sarah replies with GPT + speaks back. Say <b>End role-play</b> for the text-only evaluation.</div>
+    </div>
+    <div class="tiny" id="micline">Mic: idle</div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <div id="stage">
+        <div id="hud">Status: loading…</div>
+        <div id="avatarErr"></div>
+      </div>
+      <div style="padding:12px" class="tiny">
+        Avatar file expected at <code>/models/sarah.glb</code>.
+        Test: <code>http://localhost:3000/models/sarah.glb</code> (should download).
+      </div>
+    </div>
+
+    <div class="card right">
+      <div id="chat">
+        <div class="msg sys">1) Click <b>Enable Voice</b> once. 2) Click <b>Talk</b> and speak. 3) Or type and hit <b>Send</b>.</div>
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <input id="text" type="text" placeholder="Type your message…" />
+          <button id="send">Send</button>
+        </div>
+
+        <div class="row">
+          <button id="enableVoice">🔊 Enable Voice</button>
+          <button id="talk">🎙 Talk</button>
+          <button id="stop">⏹ Stop</button>
+        </div>
+
+        <div class="tiny">
+          Voice output uses your browser’s installed voices (Edge recommended). For best realism, we try <b>Microsoft Aria Online (Natural)</b>.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import map so addons can resolve "three" -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/vendor/three/three.module.js",
+      "three/addons/": "/vendor/three/addons/"
+    }
+  }
+  </script>
+
+  <!-- 3D Avatar -->
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+    const stage = document.getElementById("stage");
+    const hudEl = document.getElementById("hud");
+    const avatarErr = document.getElementById("avatarErr");
+
+    function setHud(s) { hudEl.textContent = "Status: " + s; }
+
+    setHud("loading avatar…");
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(stage.clientWidth, stage.clientHeight);
+    stage.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(35, stage.clientWidth / stage.clientHeight, 0.1, 100);
+    camera.position.set(0, 1.5, 2.6);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.target.set(0, 1.35, 0);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const key = new THREE.DirectionalLight(0xffffff, 1.0);
+    key.position.set(2.5, 4, 2);
+    scene.add(key);
+
+    const loader = new GLTFLoader();
+    let avatar = null;
+
+    loader.load(
+      "/models/sarah.glb",
+      (gltf) => {
+        avatar = gltf.scene;
+        avatar.scale.set(1, 1, 1);
+        scene.add(avatar);
+        avatarErr.style.display = "none";
+        setHud("idle");
+      },
+      undefined,
+      (err) => {
+        console.error("GLB load error:", err);
+        avatarErr.textContent = "Avatar failed to load. Confirm file exists at public/models/sarah.glb";
+        avatarErr.style.display = "block";
+        setHud("idle (no avatar)");
+      }
+    );
+
+    function onResize() {
+      const w = stage.clientWidth;
+      const h = stage.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener("resize", onResize);
+
+    let t = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      t += 0.016;
+
+      if (avatar) {
+        const speaking = !!window.__sarahSpeaking;
+        avatar.rotation.y = speaking ? 0.06 * Math.sin(t * 6) : 0.01 * Math.sin(t * 1.5);
+        avatar.position.y = speaking ? 0.01 * Math.abs(Math.sin(t * 10)) : 0.0;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+
+  <!-- Voice + GPT -->
+  <script>
+  window.addEventListener("DOMContentLoaded", () => {
+    const chat = document.getElementById("chat");
+    const micline = document.getElementById("micline");
+    const hudEl = document.getElementById("hud");
+
+    const textEl = document.getElementById("text");
+    const sendBtn = document.getElementById("send");
+    const enableVoiceBtn = document.getElementById("enableVoice");
+    const talkBtn = document.getElementById("talk");
+    const stopBtn = document.getElementById("stop");
+
+    function add(role, msg) {
+      const d = document.createElement("div");
+      d.className = "msg " + role;
+      d.textContent = msg;
+      chat.appendChild(d);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    function setHud(s) { hudEl.textContent = "Status: " + s; }
+
+    // Stable session id for transcript-based evaluation
+    window.__sessionId = window.__sessionId || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+
+    // ---------- TTS ----------
+    function pickVoice() {
+      const voices = speechSynthesis.getVoices();
+      return (
+        voices.find(v => v.name === "Microsoft Aria Online (Natural)") ||
+        voices.find(v => v.name.includes("Aria")) ||
+        voices.find(v => v.name.includes("Natural")) ||
+        voices.find(v => v.lang === "en-US") ||
+        voices[0] ||
+        null
+      );
+    }
+
+    function speak(text, allow = true) {
+      if (!allow) return;
+      if (!("speechSynthesis" in window)) return;
+
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US";
+      u.voice = pickVoice();
+      u.rate = 0.95;
+      u.pitch = 1.03;
+      u.volume = 1.0;
+
+      u.onstart = () => { window.__sarahSpeaking = true; setHud("speaking"); };
+      u.onend   = () => { window.__sarahSpeaking = false; setHud("idle"); };
+      u.onerror = () => { window.__sarahSpeaking = false; setHud("idle"); };
+
+      speechSynthesis.speak(u);
+    }
+
+    enableVoiceBtn.addEventListener("click", () => {
+      // Warm up voices (Edge often needs a user gesture)
+      try { speechSynthesis.cancel(); } catch {}
+      try { speechSynthesis.getVoices(); } catch {}
+      speak("Voice enabled.");
+      add("sys", "Voice enabled. You may now talk to Sarah.");
+    });
+
+    // ---------- SERVER ----------
+    async function sendToServer(message) {
+      add("u", message);
+      setHud("thinking…");
+
+      const resp = await fetch("/api/sarah-chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-session-id": window.__sessionId
+        },
+        body: JSON.stringify({ message })
+      });
+
+      if (!resp.ok) {
+        add("sys", "Server error: " + (await resp.text()));
+        setHud("idle");
+        return;
+      }
+
+      const data = await resp.json();
+      const reply = data.replyText || "(no reply)";
+      add("b", reply);
+
+      // IMPORTANT: do not speak during evaluation
+      if (!data.endRolePlay) speak(reply, true);
+      setHud(data.endRolePlay ? "evaluation (text only)" : "idle");
+    }
+
+    sendBtn.addEventListener("click", () => {
+      const msg = textEl.value.trim();
+      textEl.value = "";
+      if (msg) sendToServer(msg);
+    });
+
+    textEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const msg = textEl.value.trim();
+        textEl.value = "";
+        if (msg) sendToServer(msg);
+      }
+    });
+
+    // ---------- STT ----------
+    let recognition = null;
+    let finalText = "";
+
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SR();
+      recognition.lang = "en-US";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        micline.textContent = "Mic: listening…";
+        setHud("listening");
+        finalText = "";
+      };
+
+      recognition.onresult = (e) => {
+        finalText = "";
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+        }
+      };
+
+      recognition.onend = () => {
+        micline.textContent = "Mic: idle";
+        if (finalText.trim()) sendToServer(finalText.trim());
+        setHud("idle");
+      };
+
+      recognition.onerror = (e) => {
+        micline.textContent = "Mic error: " + e.error;
+        setHud("idle");
+      };
+
+      talkBtn.addEventListener("click", () => {
+        try { speechSynthesis.cancel(); } catch {}
+        try { recognition.start(); } catch {}
+      });
+    } else {
+      talkBtn.disabled = true;
+      micline.textContent = "Mic not supported. Use Edge or Chrome.";
+    }
+
+    stopBtn.addEventListener("click", () => {
+      try { speechSynthesis.cancel(); } catch {}
+      try { if (recognition) recognition.stop(); } catch {}
+      window.__sarahSpeaking = false;
+      micline.textContent = "Mic: idle";
+      setHud("idle");
+    });
+
+    setHud("idle");
+  });
+  </script>
+</body>
+</html>
