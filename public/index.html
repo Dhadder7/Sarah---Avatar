@@ -88,193 +88,156 @@
   }
   </script>
 
-  <!-- 3D Avatar -->
-  <script type="module">
-    import * as THREE from "three";
-    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+ <!-- 3D Avatar -->
+<script type="module">
+  import * as THREE from "three";
+  import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+  import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
-    const stage = document.getElementById("stage");
-    const hudEl = document.getElementById("hud");
-    const avatarErr = document.getElementById("avatarErr");
+  const stage = document.getElementById("stage");
+  const hudEl = document.getElementById("hud");
+  const avatarErr = document.getElementById("avatarErr");
 
-    function setHud(s) { hudEl.textContent = "Status: " + s; }
+  function setHud(s) { if (hudEl) hudEl.textContent = "Status: " + s; }
 
-    setHud("loading avatar…");
+  setHud("loading avatar…");
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setSize(stage.clientWidth, stage.clientHeight);
-    stage.appendChild(renderer.domElement);
+  // Renderer
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+  stage.appendChild(renderer.domElement);
 
-    const scene = new THREE.Scene();
+  // Scene / Camera
+  const scene = new THREE.Scene();
 
-    const camera = new THREE.PerspectiveCamera(35, stage.clientWidth / stage.clientHeight, 0.1, 100);
-    camera.position.set(0, 1.5, 2.6);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.enablePan = false;
-    controls.target.set(0, 1.35, 0);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    const key = new THREE.DirectionalLight(0xffffff, 1.0);
-    key.position.set(2.5, 4, 2);
-    scene.add(key);
-
-    const loader = new GLTFLoader();
-    let avatar = null;
-
-function fitAvatarPortrait() {
-  if (!avatar) return;
-
-  const box = new THREE.Box3().setFromObject(avatar);
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  const center = new THREE.Vector3();
-  box.getCenter(center);
-
-  avatar.position.x += (avatar.position.x - center.x);
-  avatar.position.y += (avatar.position.y - center.y);
-  avatar.position.z += (avatar.position.z - center.z);
-
-  const targetHeight = 2.9;
-  console.log("TARGET HEIGHT NOW =", targetHeight);
-
-  const scale = targetHeight / Math.max(size.y, 0.0001);
-  avatar.scale.setScalar(scale);
-
-  const box2 = new THREE.Box3().setFromObject(avatar);
-  const size2 = new THREE.Vector3();
-  box2.getSize(size2);
-  const center2 = new THREE.Vector3();
-  box2.getCenter(center2);
-
-  const fov = (camera.fov * Math.PI) / 180;
-  let camDist = (size2.y / 2) / Math.tan(fov / 2);
-  camDist *= 0.52;
-
-  const target = new THREE.Vector3(
-    center2.x,
-    center2.y + size2.y * 0.22,
-    center2.z
+  const camera = new THREE.PerspectiveCamera(
+    35,
+    stage.clientWidth / stage.clientHeight,
+    0.01,
+    1000
   );
 
-  camera.position.set(
-    target.x,
-    target.y + size2.y * 0.03,
-    target.z + camDist
-  );
+  // Controls
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
 
-  camera.near = camDist / 500;
-  camera.far = camDist * 500;
-  camera.updateProjectionMatrix();
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.60));
+  const key = new THREE.DirectionalLight(0xffffff, 1.05);
+  key.position.set(2.5, 4.0, 2.0);
+  scene.add(key);
 
-  controls.target.copy(target);
-  controls.update();
-}
+  // Loader + Avatar
+  const loader = new GLTFLoader();
+  let avatar = null;
 
-// 👇 your existing code continues below, untouched
+  // ---- FIT FUNCTION (ONE AND ONLY ONE) ----
+  function fitAvatarPortrait() {
+    if (!avatar) return;
 
-function fitAvatarPortrait() {
-  if (!avatar) return;
+    // Compute bounds
+    const box = new THREE.Box3().setFromObject(avatar);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
 
-  // box/size/center
-  const box = new THREE.Box3().setFromObject(avatar);
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  const center = new THREE.Vector3();
-  box.getCenter(center);
+    // Center model at origin
+    avatar.position.sub(center);
 
-  // center at origin
-  avatar.position.x += (avatar.position.x - center.x);
-  avatar.position.y += (avatar.position.y - center.y);
-  avatar.position.z += (avatar.position.z - center.z);
+    // SCALE: adjust this number to tune size (smaller = smaller)
+    const targetHeight = 3.1;   // start here; tweak to taste
+    const scale = targetHeight / Math.max(size.y, 0.0001);
+    avatar.scale.setScalar(scale);
 
-  // IMPORTANT: use your chosen height here (this is what you’re tuning)
-  const targetHeight = 2.9;
-  console.log("TARGET HEIGHT NOW =", targetHeight);
+    // Recompute bounds after scale
+    const box2 = new THREE.Box3().setFromObject(avatar);
+    const size2 = new THREE.Vector3();
+    box2.getSize(size2);
+    const center2 = new THREE.Vector3();
+    box2.getCenter(center2);
 
-  const scale = targetHeight / Math.max(size.y, 0.0001);
-  avatar.scale.setScalar(scale);
-
-  // recompute after scaling
-  const box2 = new THREE.Box3().setFromObject(avatar);
-  const size2 = new THREE.Vector3();
-  box2.getSize(size2);
-  const center2 = new THREE.Vector3();
-  box2.getCenter(center2);
-
-  const fov = (camera.fov * Math.PI) / 180;
-  let camDist = (size2.y / 2) / Math.tan(fov / 2);
-  camDist *= 0.52; // framing (leave unless you want to re-tune)
-
-  // aim high: head/shoulders, avoid arms/hands
-  const target = new THREE.Vector3(center2.x, center2.y + size2.y * 0.22, center2.z);
-
-  camera.position.set(target.x, target.y + size2.y * 0.03, target.z + camDist);
-  camera.near = camDist / 500;
-  camera.far = camDist * 500;
-  camera.updateProjectionMatrix();
-
-  controls.target.copy(target);
-  controls.update();
-}
-
-    loader.load(
-      "/models/sarah.glb",
-      (gltf) => {
-        avatar = gltf.scene;
-scene.add(avatar);
-
-fitAvatarPortrait();
-setHud("idle");
-
-setHud("idle");
-
-// ---- END SUPER PORTRAIT FIT ----
-
-setHud("idle");
-
-
-
-      },
-      undefined,
-      (err) => {
-        console.error("GLB load error:", err);
-        avatarErr.textContent = "Avatar failed to load. Confirm file exists at public/models/sarah.glb";
-        avatarErr.style.display = "block";
-        setHud("idle (no avatar)");
-      }
+    // Head/shoulders target (raises aim so arms/hands stay out of frame)
+    const target = new THREE.Vector3(
+      center2.x,
+      center2.y + size2.y * 0.24,
+      center2.z
     );
 
-    function onResize() {
-      const w = stage.clientWidth;
-      const h = stage.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-window.addEventListener("resize", onResize);
+    // Camera distance based on height
+    const fov = (camera.fov * Math.PI) / 180;
+    let camDist = (size2.y / 2) / Math.tan(fov / 2);
 
-    }
-    fitAvatarPortrait();
+    // Zoom (smaller multiplier = closer/tighter)
+    camDist *= 0.52;
 
-    let t = 0;
-    function animate() {
-      requestAnimationFrame(animate);
-      t += 0.016;
+    camera.position.set(
+      target.x,
+      target.y + size2.y * 0.03,
+      target.z + camDist
+    );
 
-      if (avatar) {
-        const speaking = !!window.__sarahSpeaking;
-        avatar.rotation.y = speaking ? 0.06 * Math.sin(t * 6) : 0.01 * Math.sin(t * 1.5);
-        avatar.position.y = speaking ? 0.01 * Math.abs(Math.sin(t * 10)) : 0.0;
+    camera.near = camDist / 500;
+    camera.far = camDist * 500;
+    camera.updateProjectionMatrix();
+
+    controls.target.copy(target);
+    controls.update();
+  }
+
+  // Load GLB
+  loader.load(
+    "/models/sarah.glb",
+    (gltf) => {
+      avatar = gltf.scene;
+      scene.add(avatar);
+
+      fitAvatarPortrait();
+      setHud("idle");
+    },
+    undefined,
+    (err) => {
+      console.error("GLB load error:", err);
+      if (avatarErr) {
+        avatarErr.textContent = "Avatar failed to load. Confirm file exists at public/models/sarah.glb";
+        avatarErr.style.display = "block";
       }
-
-      controls.update();
-      renderer.render(scene, camera);
+      setHud("idle (no avatar)");
     }
-    animate();
-  </script>
+  );
+
+  // Resize
+  function onResize() {
+    const w = stage.clientWidth;
+    const h = stage.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+
+    fitAvatarPortrait();
+  }
+  window.addEventListener("resize", onResize);
+
+  // Animate
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    t += 0.016;
+
+    if (avatar) {
+      const speaking = !!window.__sarahSpeaking;
+      avatar.rotation.y = speaking ? 0.05 * Math.sin(t * 6) : 0.01 * Math.sin(t * 1.5);
+      avatar.position.y = speaking ? 0.01 * Math.abs(Math.sin(t * 10)) : 0;
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+
 
   <!-- Voice + GPT -->
   <script>
